@@ -85,18 +85,39 @@ export default function TripDetailPage() {
     }
   };
 
+  // const handleGetHotels = async () => {
+  //   setActionLoading(true);
+  //   try {
+  //     const res = await api.get(`/trips/${id}/hotels`);
+  //     setTrip(res.data);
+  //   } catch (err) {
+  //     alert(err.response?.data?.error || "Failed to fetch hotels");
+  //   } finally {
+  //     setActionLoading(false);
+  //   }
+  // };
+
   const handleGetHotels = async () => {
+    console.log("HOTEL BUTTON CLICKED");
+
     setActionLoading(true);
+
     try {
       const res = await api.get(`/trips/${id}/hotels`);
+
+      console.log("HOTEL RESPONSE:");
+      console.log(res.data);
+
       setTrip(res.data);
     } catch (err) {
+      console.log("HOTEL ERROR:");
+      console.log(err);
+
       alert(err.response?.data?.error || "Failed to fetch hotels");
     } finally {
       setActionLoading(false);
     }
   };
-
   if (loading)
     return (
       <div className="p-10 text-center text-gray-500">Loading trip...</div>
@@ -235,13 +256,15 @@ export default function TripDetailPage() {
             <h2 className="text-lg font-bold text-gray-900">
               🏨 Hotel Suggestions
             </h2>
-            <button
-              onClick={handleGetHotels}
-              disabled={actionLoading}
-              className="text-sm text-blue-600 hover:underline disabled:opacity-50"
-            >
-              {trip.hotels?.length > 0 ? "Refresh" : "Get Suggestions"}
-            </button>
+            {
+              <button
+                onClick={handleGetHotels}
+                disabled={actionLoading}
+                className="text-sm text-blue-600 hover:underline disabled:opacity-50"
+              >
+                {trip.hotels?.length > 0 ? "Refresh" : "Get Suggestions"}
+              </button>
+            }
           </div>
 
           {trip.hotels?.length > 0 ? (
