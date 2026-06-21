@@ -14,6 +14,8 @@ export default function TripDetailPage() {
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [newActivity, setNewActivity] = useState({});
+  const [regenerateDayNum, setRegenerateDayNum] = useState(null);
+  const [regeneratePrefs, setRegeneratePrefs] = useState("");
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -67,17 +69,15 @@ export default function TripDetailPage() {
     }
   };
 
-  const handleRegenerateDay = async (dayNumber) => {
-    const preferences = window.prompt(
-      "Any preferences for this day? (optional)",
-      "",
-    );
+  const handleRegenerateDay = async (dayNumber, preferences = "") => {
     setActionLoading(true);
     try {
       const res = await api.post(`/trips/${id}/day/${dayNumber}/regenerate`, {
         preferences,
       });
       setTrip(res.data);
+      setRegenerateDayNum(null);
+      setRegeneratePrefs("");
     } catch (err) {
       alert(err.response?.data?.error || "Failed to regenerate day");
     } finally {
@@ -85,39 +85,18 @@ export default function TripDetailPage() {
     }
   };
 
-  // const handleGetHotels = async () => {
-  //   setActionLoading(true);
-  //   try {
-  //     const res = await api.get(`/trips/${id}/hotels`);
-  //     setTrip(res.data);
-  //   } catch (err) {
-  //     alert(err.response?.data?.error || "Failed to fetch hotels");
-  //   } finally {
-  //     setActionLoading(false);
-  //   }
-  // };
-
   const handleGetHotels = async () => {
-    console.log("HOTEL BUTTON CLICKED");
-
     setActionLoading(true);
-
     try {
       const res = await api.get(`/trips/${id}/hotels`);
-
-      console.log("HOTEL RESPONSE:");
-      console.log(res.data);
-
       setTrip(res.data);
     } catch (err) {
-      console.log("HOTEL ERROR:");
-      console.log(err);
-
       alert(err.response?.data?.error || "Failed to fetch hotels");
     } finally {
       setActionLoading(false);
     }
   };
+
   if (loading)
     return (
       <div className="p-10 text-center text-gray-500">Loading trip...</div>
@@ -199,13 +178,44 @@ export default function TripDetailPage() {
             <div key={day.day} className="bg-white rounded-2xl shadow p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-bold text-gray-900">Day {day.day}</h3>
-                <button
-                  onClick={() => handleRegenerateDay(day.day)}
-                  disabled={actionLoading}
-                  className="text-sm text-blue-600 hover:underline disabled:opacity-50"
-                >
-                  🔄 Regenerate
-                </button>
+
+                {regenerateDayNum === day.day ? (
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      value={regeneratePrefs}
+                      onChange={(e) => setRegeneratePrefs(e.target.value)}
+                      placeholder="Preferences (optional)"
+                      className="text-sm px-2 py-1 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={() =>
+                        handleRegenerateDay(day.day, regeneratePrefs)
+                      }
+                      disabled={actionLoading}
+                      className="text-sm bg-blue-600 text-white px-3 py-1 rounded-lg disabled:opacity-50"
+                    >
+                      Go
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRegenerateDayNum(null);
+                        setRegeneratePrefs("");
+                      }}
+                      className="text-sm text-gray-500"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setRegenerateDayNum(day.day)}
+                    disabled={actionLoading}
+                    className="text-sm text-blue-600 hover:underline disabled:opacity-50"
+                  >
+                    🔄 Regenerate
+                  </button>
+                )}
               </div>
 
               <ul className="space-y-2 mb-4">
@@ -256,15 +266,13 @@ export default function TripDetailPage() {
             <h2 className="text-lg font-bold text-gray-900">
               🏨 Hotel Suggestions
             </h2>
-            {
-              <button
-                onClick={handleGetHotels}
-                disabled={actionLoading}
-                className="text-sm text-blue-600 hover:underline disabled:opacity-50"
-              >
-                {trip.hotels?.length > 0 ? "Refresh" : "Get Suggestions"}
-              </button>
-            }
+            <button
+              onClick={handleGetHotels}
+              disabled={actionLoading}
+              className="text-sm text-blue-600 hover:underline disabled:opacity-50"
+            >
+              {trip.hotels?.length > 0 ? "Refresh" : "Get Suggestions"}
+            </button>
           </div>
 
           {trip.hotels?.length > 0 ? (
