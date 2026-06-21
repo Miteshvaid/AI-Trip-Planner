@@ -1,160 +1,184 @@
 # AI Trip Planner ✈️
 
-A full-stack, multi-user trip planning web application that uses an LLM agent to generate day-by-day travel itineraries, estimate trip budgets, suggest hotels, and allow dynamic itinerary editing — built as part of a Full-Stack Engineering Assessment.
+A full-stack, multi-user trip planning app that uses an LLM agent to generate day-by-day travel itineraries, estimate budgets, suggest hotels, and let users edit their plans dynamically. Built for a Full-Stack Engineering Assessment.
 
-**Live Demo:** [Frontend URL here]
-**Backend API:** [Render URL here]
-**Video Walkthrough:** [Video link here]
-**GitHub Repo:** https://github.com/Miteshvaid/AI-Trip-Planner
-
----
-
-## 1. Project Overview
-
-Users can register, log in, and create personalized trip plans by providing a destination, number of days, budget level, and interests. An AI agent generates a structured day-wise itinerary, estimates the budget breakdown, and suggests hotels. Users can edit itineraries by adding/removing activities or regenerating a specific day. The app enforces strict per-user data isolation — no user can view or modify another user's trips.
+- **Live App:** https://ai-trip-planner-black-seven.vercel.app
+- **Backend API:** https://ai-trip-planner-22d1.onrender.com
+- **Video Walkthrough:**(https://www.loom.com/share/5b7b6b36365d46d48768978eb43fa70e)
+- **GitHub Repo:** https://github.com/Miteshvaid/AI-Trip-Planner
 
 ---
 
-## 2. Tech Stack
+## Overview
 
-| Layer       | Technology                           |
-| ----------- | ------------------------------------ |
-| Frontend    | Next.js (App Router) + Tailwind CSS  |
-| Backend     | Node.js + Express                    |
-| Database    | MongoDB (Atlas) + Mongoose           |
-| Auth        | JWT (JSON Web Tokens) + bcrypt       |
-| AI Provider | Google Gemini API                    |
-| Language    | JavaScript                           |
-| Deployment  | Vercel (frontend) + Render (backend) |
-
-**Note on JavaScript over TypeScript:** The assessment allows either. JavaScript was chosen to move faster within the deadline while still maintaining clean separation of concerns (routes → controllers → models → services) and meaningful naming conventions throughout.
+Users register, log in, and create a trip by entering a destination, number of days, budget level, and interests. An AI agent generates a structured itinerary, a budget breakdown, and hotel suggestions. From there, users can add or remove activities and regenerate any specific day. Every trip is scoped strictly to its owner — no user can view or edit another user's trips.
 
 ---
 
-## 3. Architecture
+## Tech Stack
 
-**Flow:** Frontend (Next.js, client components) → Axios → Express REST API → MongoDB (via Mongoose) and Gemini API (via `ai.service.js`).
+| Layer      | Technology                          |
+| ---------- | ----------------------------------- |
+| Frontend   | Next.js (App Router) + Tailwind CSS |
+| Backend    | Node.js + Express                   |
+| Database   | MongoDB (Atlas) + Mongoose          |
+| Auth       | JWT + bcrypt                        |
+| AI         | Google Gemini API                   |
+| Deployment | Vercel (frontend), Render (backend) |
 
----
-
-## 4. Authentication & Authorization
-
-- **Registration/Login:** Passwords hashed with `bcrypt` before storage. On successful login/register, a JWT (7-day expiry) containing the user's ID is issued.
-- **Protecting routes:** An Express middleware (`auth.middleware.js`) verifies the JWT on every protected request and attaches `req.userId`.
-- **Data isolation:** Every Trip document stores a `userId` field. All read/write operations on a trip explicitly check `trip.userId.toString() === req.userId` before proceeding, returning `403 Forbidden` otherwise. This was manually verified by creating two users and confirming User B receives a 403 when accessing User A's trip by ID.
-- **Frontend:** JWT is stored in `localStorage`, attached to every API request via an Axios interceptor, and the app redirects to `/login` automatically on `401` responses or when an unauthenticated user accesses a protected page.
-
----
-
-## 5. AI Agent Design
-
-The AI logic lives entirely in `server/src/services/ai.service.js`, with three functions:
-
-- `generateItinerary(destination, days, budgetType, interests)` — prompts Gemini to return a strict JSON itinerary (`{ itinerary: [{ day, activities }] }`)
-- `estimateBudget(destination, days, budgetType)` — prompts Gemini for a JSON budget breakdown (flights, accommodation, food, activities, total)
-- `suggestHotels(destination, budgetType)` — prompts Gemini for 3 hotel suggestions across Budget/Mid/Luxury categories
-
-All prompts explicitly instruct the model to return **only valid JSON, no markdown**, which is then parsed directly — avoiding fragile regex-based text extraction.
-
-**Regeneration with duplicate-avoidance:** When a user regenerates a specific day, the backend collects all activities already present in _other_ days of the same trip and filters the newly generated activities against that list, so regenerating Day 2 won't suggest an attraction already planned for Day 1. If filtering would empty the day entirely (e.g., due to limited variety), it falls back to the unfiltered set rather than returning an empty day.
-
-**Graceful AI fallback (important design decision):** During development, the available Gemini API key was tied to an organization-restricted Google Cloud project with a free-tier quota of `0`, an account/policy limitation rather than a code defect. Rather than letting this block development or leave the app non-functional during demos, every AI function wraps its Gemini call in a `try/catch`: on failure (quota, network, parsing), it falls back to a deterministic, structurally-identical mock generator instead of crashing or surfacing an error to the user. This means:
-
-- The full request/response contract (itinerary shape, budget shape, hotel shape) is identical whether AI succeeds or falls back.
-- No frontend or controller code needs to change once a fully-provisioned API key is available — only the `ai.service.js` Gemini calls themselves activate.
-- This mirrors a common production pattern: degrade gracefully when a third-party dependency is unavailable, rather than failing the whole request.
+JavaScript was used instead of TypeScript to move faster within the deadline — code organization (routes → controllers → models → services) and naming conventions cover the readability that TypeScript would otherwise help enforce.
 
 ---
 
-## 6. Editable Itinerary
+## Architecture
 
-- **Add activity:** `POST /api/trips/:id/day/:dayNumber/activity`
-- **Remove activity:** `DELETE /api/trips/:id/day/:dayNumber/activity` (body: `{ activityIndex }`)
-- **Regenerate day:** `POST /api/trips/:id/day/:dayNumber/regenerate` (body: `{ preferences }`, e.g. "more outdoor activities")
+client/ Next.js frontend
 
-**Design decision:** Regenerating a day replaces _all_ of that day's activities, including manually added ones. The assessment's own example ("Regenerate Day 3 with more outdoor activities") implies a full refresh of the day rather than a partial merge, and partial-merge semantics would be ambiguous (which activities count as "AI-generated" vs "user-added" once saved to the same array). This is documented here as a known, intentional trade-off rather than a bug.
+src/app/
+
+register/, login/ auth pages
+
+dashboard/ trip list
+
+trips/new/ trip creation form
+
+trips/[id]/ itinerary, editing, hotels
+
+src/context/ AuthContext — global auth state
+
+src/lib/api.js Axios instance with JWT interceptor
+server/ Express backend
+
+src/models/ User, Trip
+
+src/controllers/ auth + trip logic
+
+src/routes/ route definitions
+
+src/middleware/ JWT auth middleware
+
+src/services/ai.service.js Gemini integration + fallback
+
+src/config/db.js MongoDB connection
+
+Frontend → Axios → Express REST API → MongoDB + Gemini API.
 
 ---
 
-## 7. Creative / Custom Feature
+## Authentication & Authorization
 
-**Duplicate-aware day regeneration** (described in Section 5) was chosen as the creative feature because it solves a real coherence problem the spec doesn't address: naively regenerating one day in isolation can easily suggest an attraction the user already has planned for another day in the same trip. By passing the existing itinerary's activities as context and filtering against them, the regenerated day stays consistent with the rest of the trip — a small but meaningful improvement in itinerary quality that demonstrates engineering judgment beyond the literal requirements.
+- Passwords are hashed with bcrypt before storage. Login/register issues a 7-day JWT containing the user's ID.
+- An Express middleware verifies the JWT on every protected route and attaches `req.userId`.
+- **Data isolation:** every Trip document stores a `userId`. All reads/writes check `trip.userId === req.userId` before proceeding, returning `403` otherwise. Verified manually by creating two users and confirming a 403 when one tries to access the other's trip directly.
+- On the frontend, the JWT is stored in `localStorage` and attached to every request via an Axios interceptor. A `401` response or an unauthenticated visit to a protected page redirects to `/login`.
 
 ---
 
-## 8. Setup Instructions
+## AI Agent Design
 
-### Local Setup
+All AI logic lives in `server/src/services/ai.service.js`, with three functions:
 
-**Backend:**
+- `generateItinerary()` — returns a JSON itinerary (`{ day, activities }[]`)
+- `estimateBudget()` — returns a JSON budget breakdown
+- `suggestHotels()` — returns 3 hotels across Budget / Mid-range / Luxury
+
+Prompts explicitly instruct the model to return only valid JSON, which is parsed directly rather than extracted with regex.
+
+**Duplicate-aware regeneration:** when a day is regenerated, the backend collects activities already used in the trip's _other_ days and filters the newly generated ones against that list, so regenerating Day 2 won't repeat something already planned for Day 1. If filtering would leave a day empty, it falls back to the unfiltered set.
+
+**Graceful AI fallback:** the Gemini key available during development was tied to an account with a free-tier quota of 0 — a provisioning limitation, not a code issue. To keep the app fully functional regardless, every AI function wraps its Gemini call in a try/catch and falls back to a randomized, structurally-identical generator on failure. The response shape is identical either way, so no other part of the app needs to change once a fully-provisioned key is used — only the Gemini call itself starts succeeding.
+
+---
+
+## Editable Itinerary
+
+- `POST /api/trips/:id/day/:dayNumber/activity` — add an activity
+- `DELETE /api/trips/:id/day/:dayNumber/activity` — remove an activity (`{ activityIndex }`)
+- `POST /api/trips/:id/day/:dayNumber/regenerate` — regenerate a day (`{ preferences }`, optional)
+
+Regenerating a day replaces all of that day's activities, including manually added ones. The assessment's own example phrasing ("Regenerate Day 3 with more outdoor activities") implies a full refresh rather than a partial merge — and partial merges would be ambiguous once activities are stored as plain strings in the same array. This is an intentional trade-off.
+
+---
+
+## Creative Feature
+
+**Duplicate-aware day regeneration** was the creative addition — it solves a real coherence problem the spec doesn't address. Naively regenerating one day in isolation can easily suggest something already planned elsewhere in the same trip. By passing the rest of the itinerary as context and filtering against it, the regenerated day stays consistent with the trip as a whole.
+
+---
+
+## Setup
+
+### Local
+
+**Backend**
 
 ```bash
 cd server
 npm install
-# create a .env file (see .env.example) with:
+# .env:
 # PORT=5000
-# MONGO_URI=<your MongoDB Atlas URI>
+# MONGO_URI=<MongoDB Atlas URI>
 # JWT_SECRET=<any long random string>
-# GEMINI_API_KEY=<your Gemini API key>
+# GEMINI_API_KEY=<Gemini API key>
 # CLIENT_URL=http://localhost:3000
 npm run dev
 ```
 
-**Frontend:**
+**Frontend**
 
 ```bash
 cd client
 npm install
-# create a .env.local file with:
+# .env.local:
 # NEXT_PUBLIC_API_URL=http://localhost:5000/api
 npm run dev
 ```
 
 Visit `http://localhost:3000`.
 
-### Deployed Setup
+### Deployed
 
-- **Backend:** Deployed on Render (Web Service), root directory `server`, build command `npm install`, start command `node src/server.js`. Environment variables configured in the Render dashboard.
-- **Frontend:** Deployed on Vercel, root directory `client`, framework auto-detected as Next.js. `NEXT_PUBLIC_API_URL` environment variable points to the deployed Render backend URL.
-- **Database:** MongoDB Atlas, with network access configured to allow connections from anywhere (`0.0.0.0/0`) since Render's free tier does not provide a static outbound IP.
-
----
-
-## 9. Key Design Decisions & Trade-offs
-
-| Decision                                          | Reasoning                                                                                                                                                                                                |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| JavaScript over TypeScript                        | Faster iteration within the deadline; clean architecture maintained via folder structure and naming instead of static typing                                                                             |
-| Express API routes instead of Next.js API routes  | Matches the assessment's "preferred tech stack" explicitly, and keeps backend fully independent/portable                                                                                                 |
-| JWT in `localStorage` instead of httpOnly cookies | Simpler to implement and test within the timeframe; trade-off is slightly higher XSS exposure risk, acceptable for this assessment's scope                                                               |
-| Full-day replace on regenerate                    | Avoids ambiguous partial-merge logic; documented as intentional                                                                                                                                          |
-| AI fallback on failure instead of error response  | Keeps the app demonstrable end-to-end even if the third-party AI quota is exhausted, at the cost of occasionally serving non-AI content silently (logged server-side via `console.error` for visibility) |
-| MongoDB `0.0.0.0/0` network access                | Required because Render's free tier doesn't expose a fixed IP; acceptable for a free-tier/demo deployment, would use VPC peering or IP allowlisting in a production environment                          |
+- **Backend:** Render Web Service, root directory `server`, build `npm install`, start `node src/server.js`.
+- **Frontend:** Vercel, root directory `client`, framework auto-detected.
+- **Database:** MongoDB Atlas, network access set to `0.0.0.0/0` since Render's free tier has no static outbound IP.
 
 ---
 
-## 10. Known Limitations
+## Key Design Decisions
 
-- AI-generated content depends on Gemini API quota; when exhausted, the app transparently falls back to structured mock data (see Section 5).
-- No automated test suite was added due to time constraints; all flows were manually verified via Postman/PowerShell (auth, isolation, CRUD, edit/regenerate, hotels) and through the UI.
-- Activities are stored as plain strings rather than objects with metadata (e.g., time of day, location, cost), which would be a natural next enhancement.
-- No pagination on the trips list; would be needed at scale.
-- Free-tier hosting (Render) spins down on inactivity, so the first request after idling may take ~30–50 seconds to respond.
+| Decision                                  | Why                                                                                       |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------- |
+| JavaScript over TypeScript                | Faster iteration within the deadline                                                      |
+| Express backend (not Next.js API routes)  | Matches the assessment's preferred stack, keeps backend portable                          |
+| JWT in localStorage, not httpOnly cookies | Simpler to implement/test in the timeframe; slightly higher XSS exposure, acceptable here |
+| Full-day replace on regenerate            | Avoids ambiguous partial-merge semantics                                                  |
+| AI fallback instead of error on failure   | Keeps the app demonstrable end-to-end if the AI quota is exhausted                        |
+| MongoDB open network access               | Required for Render's free tier; would use IP allowlisting/VPC peering in production      |
 
 ---
 
-## 11. API Endpoints Summary
+## Known Limitations
 
-| Method | Endpoint                                   | Description                                            |
-| ------ | ------------------------------------------ | ------------------------------------------------------ |
-| POST   | `/api/auth/register`                       | Register a new user                                    |
-| POST   | `/api/auth/login`                          | Login, returns JWT                                     |
-| POST   | `/api/trips`                               | Create a trip (AI-generated itinerary, budget, hotels) |
-| GET    | `/api/trips`                               | List current user's trips                              |
-| GET    | `/api/trips/:id`                           | Get a specific trip (ownership-checked)                |
-| POST   | `/api/trips/:id/day/:dayNumber/activity`   | Add an activity to a day                               |
-| DELETE | `/api/trips/:id/day/:dayNumber/activity`   | Remove an activity from a day                          |
-| POST   | `/api/trips/:id/day/:dayNumber/regenerate` | Regenerate a day's activities                          |
-| GET    | `/api/trips/:id/hotels`                    | Get/refresh hotel suggestions                          |
+- AI content depends on Gemini quota; falls back to structured mock data when exhausted.
+- No automated test suite — flows were verified manually (Postman/PowerShell + UI) for auth, isolation, CRUD, editing, and hotels.
+- Activities are stored as plain strings, not objects with metadata (time, location, cost) — a natural next step.
+- No pagination on the trips list.
+- Render's free tier spins down on inactivity, so the first request after idling can take 30–50 seconds.
+
+---
+
+## API Reference
+
+| Method | Endpoint                                   | Description                   |
+| ------ | ------------------------------------------ | ----------------------------- |
+| POST   | `/api/auth/register`                       | Register a new user           |
+| POST   | `/api/auth/login`                          | Login, returns JWT            |
+| POST   | `/api/trips`                               | Create a trip                 |
+| GET    | `/api/trips`                               | List the current user's trips |
+| GET    | `/api/trips/:id`                           | Get a specific trip           |
+| POST   | `/api/trips/:id/day/:dayNumber/activity`   | Add an activity               |
+| DELETE | `/api/trips/:id/day/:dayNumber/activity`   | Remove an activity            |
+| POST   | `/api/trips/:id/day/:dayNumber/regenerate` | Regenerate a day              |
+| GET    | `/api/trips/:id/hotels`                    | Get/refresh hotel suggestions |
 
 All `/api/trips/*` routes require `Authorization: Bearer <token>`.
